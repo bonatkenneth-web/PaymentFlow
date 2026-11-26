@@ -12,7 +12,6 @@ const Student = require('../models/studentModel');
 const StellarSdk = require('@stellar/stellar-sdk');
 
 const {
-  verifyTransaction,
   recordPayment,
   validatePaymentWithDynamicFee,
   determineConfirmationState,
@@ -26,7 +25,7 @@ const { validateTransactionHash } = require('../utils/hashValidator');
 const { getPaymentLimits, validatePaymentAmount } = require('../utils/paymentLimits');
 const { SUPPORTED_MEMO_TYPES } = require('../utils/stellarMemo');
 const { convertToLocalCurrency } = require('../services/currencyConversionService');
-const { withStellarRetry } = require('../utils/withStellarRetry');
+const { getProvider } = require('../services/providers/registry');
 const { makePaymentAuditLogger } = require('../utils/paymentAuditLogger');
 const lock = require('../services/distributedLock');
 const logger = require('../utils/logger');
@@ -193,6 +192,7 @@ async function submitTransaction(req, res, next) {
     const { xdr, paymentIntentId } = req.body;
     if (!xdr) return res.status(400).json({ error: 'Missing xdr parameter', code: 'MISSING_XDR' });
 
+    const provider = getProvider(undefined, req.school);
     const tx = new StellarSdk.Transaction(xdr, require('../config/stellarConfig').networkPassphrase);
     const transactionHash = tx.hash().toString('hex');
 
@@ -253,7 +253,7 @@ async function submitTransaction(req, res, next) {
     // was never broadcast — fail immediately without polling.
     let txResponse;
     try {
-      txResponse = await withStellarRetry(() => server.submitTransaction(tx), { label: 'submitTransaction' });
+      txResponse = await provider.submitPayment(tx);
     } catch (err) {
       paymentRecord = (await transitionPayment(paymentRecord, 'FAILED', {
         performedBy: transitionActor,
@@ -391,7 +391,7 @@ async function verifyPayment(req, res, next) {
       let result;
       try {
         // Pass schoolId so verifyTransaction scopes the student lookup to this school (#845).
-        result = await verifyTransaction(normalizedHash, req.school.stellarAddress, schoolId);
+        result = await getProvider(undefined, req.school).queryStatus(normalizedHash, req.school.stellarAddress, schoolId);
       } catch (stellarErr) {
         if (PERMANENT_FAIL_CODES.includes(stellarErr.code)) {
           await audit.failure(stellarErr.message, { txHash: normalizedHash, errorCode: stellarErr.code });
