@@ -62,10 +62,15 @@ const {
 const { resolveSchool } = require('../middleware/schoolContext');
 const idempotencyMiddleware = require('../middleware/idempotency');
 const { auditContext } = require('../middleware/auditContext');
-const { strictLimiter, verifyLimiter, syncLimiter } = require('../middleware/rateLimiter');
+const { rl, strictLimiter, verifyLimiter, syncLimiter } = require('../middleware/rateLimiter');
 const { contractPaused } = require('../middleware/contractPaused');
 
+const { getBulkPaymentStatus } = require('../controllers/bulkPaymentStatusController');
+
 const router = express.Router();
+const bulkStatusLimiter = rl(60_000, 20, undefined, {
+  keyGenerator: (req) => `bulk-payment-status:${req.schoolId}`,
+});
 
 // Idempotency middleware for critical payment endpoints that must fail-closed
 // when the datastore becomes unreachable to prevent duplicate submissions.
@@ -187,6 +192,7 @@ router.use(resolveSchool);
 
 // Payment read endpoints now require authentication (Issue #1040)
 router.get("/", requireSchoolAuth(), validatePagination, getAllPayments);
+router.post("/bulk-status", requireSchoolAuth(), bulkStatusLimiter, getBulkPaymentStatus);
 router.get("/summary", requireSchoolAuth(), getPaymentSummary);
 router.get("/accepted-assets", requireSchoolAuth(), getAcceptedAssets);
 router.get("/limits", requireSchoolAuth(), getPaymentLimitsEndpoint);
