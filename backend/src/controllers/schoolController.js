@@ -176,7 +176,16 @@ async function getSchool(req, res, next) {
 async function updateSchool(req, res, next) {
   try {
     const allowed = ['name', 'stellarAddress', 'network', 'adminEmail', 'address', 'suspiciousPaymentMultiplier', 'suspiciousAmountConfig', 'localCurrency', 'classOptions'];
+    const { enabledPaymentProviders } = req.body;
+    if (enabledPaymentProviders !== undefined &&
+        (!Array.isArray(enabledPaymentProviders) || enabledPaymentProviders.length > 20 ||
+          !enabledPaymentProviders.every((name) => typeof name === 'string' && /^[a-z][a-z0-9_-]{0,63}$/.test(name)))) {
+      return res.status(422).json({ error: 'enabledPaymentProviders must be an array of provider names' });
+    }
     const updates = {};
+    if (enabledPaymentProviders !== undefined) {
+      updates.enabledPaymentProviders = [...new Set(enabledPaymentProviders)];
+    }
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
