@@ -77,7 +77,9 @@ const webhookQueueDepth = new client.Gauge({
   async collect() {
     const WebhookRetry = require('../models/webhookRetryModel');
     if (WebhookRetry.db?.readyState !== 1) return;
-    this.set(await WebhookRetry.countDocuments({ status: { $in: ['pending', 'processing'] } }));
+    const depth = await WebhookRetry.countDocuments({ status: { $in: ['pending', 'processing'] } })
+      .catch(() => null);
+    if (depth !== null) this.set(depth);
   },
 });
 
@@ -89,8 +91,11 @@ const webhookPendingAge = new client.Gauge({
     const WebhookRetry = require('../models/webhookRetryModel');
     if (WebhookRetry.db?.readyState !== 1) return;
     const retry = await WebhookRetry.findOne({ status: 'pending', nextRetryAt: { $lte: new Date() } })
-      .sort({ nextRetryAt: 1 }).select('nextRetryAt').lean();
-    this.set(retry ? Math.max(0, (Date.now() - retry.nextRetryAt) / 1000) : 0);
+      .sort({ nextRetryAt: 1 }).select('nextRetryAt').lean()
+      .catch(() => undefined);
+    if (retry !== undefined) {
+      this.set(retry ? Math.max(0, (Date.now() - retry.nextRetryAt) / 1000) : 0);
+    }
   },
 });
 
