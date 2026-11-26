@@ -378,6 +378,7 @@ async function verifyPayment(req, res, next) {
     // though the unique index on Payment { schoolId, txHash } is the ultimate
     // dedup guard.  The lock is keyed per (school, txHash) so only identical
     // concurrent verify calls contend — different hashes proceed in parallel.
+    const provider = getProvider(undefined, req.school);
     const verifyLockKey = `sync:lock:${schoolId}:verify:${normalizedHash}`;
     // acquire() returns { token, fencingToken } (or null); release() needs the
     // raw token string, so destructure it — otherwise the lock never releases.
@@ -391,7 +392,7 @@ async function verifyPayment(req, res, next) {
       let result;
       try {
         // Pass schoolId so verifyTransaction scopes the student lookup to this school (#845).
-        result = await getProvider(undefined, req.school).queryStatus(normalizedHash, req.school.stellarAddress, schoolId);
+        result = await provider.queryStatus(normalizedHash, req.school.stellarAddress, schoolId);
       } catch (stellarErr) {
         if (PERMANENT_FAIL_CODES.includes(stellarErr.code)) {
           await audit.failure(stellarErr.message, { txHash: normalizedHash, errorCode: stellarErr.code });

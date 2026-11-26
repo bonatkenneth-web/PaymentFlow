@@ -19,16 +19,14 @@ function loadProviders(config = { [defaultProvider]: {} }) {
       continue;
     }
 
-    const provider = validatePaymentProvider(new Implementation());
+    const provider = validatePaymentProvider(new Implementation(policy?.retry));
     const breakerName = `payment:${name}`;
     registerBreaker(breakerName, policy?.circuitBreaker);
     const wrapped = { name, capabilities: provider.capabilities };
     for (const operation of operations) {
       wrapped[operation] = (...args) => withBreaker(
         breakerName,
-        () => operation === 'submitPayment'
-          ? provider.submitPayment(args[0], policy?.retry)
-          : provider[operation](...args),
+        () => provider[operation](...args),
         {
           countsAsFailure: (error) => {
             const status = error.status ?? error.response?.status;

@@ -2,7 +2,7 @@
 
 PaymentFlow loads the Stellar wallet adapter by default. At startup, set
 `PAYMENT_PROVIDERS_JSON` to select the compiled-in adapters and configure their
-circuit breakers and submission retries. For example:
+circuit breakers and submission and status-query retries. For example:
 
 ```json
 {
